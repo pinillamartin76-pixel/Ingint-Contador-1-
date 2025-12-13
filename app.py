@@ -3,11 +3,15 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Border, Side
 from datetime import datetime, date
 import os
-import base64
-import requests
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email.mime.text import MIMEText
+from email import encoders
 
 app = Flask(__name__)
-app.secret_key = "super_secret_key_123"
+app.secret_key = os.environ.get("SECRET_KEY", "super_secret_key_123")
+
 
 # =======================================
 # ARCHIVO DINÁMICO POR USUARIO + RUTA
@@ -73,7 +77,6 @@ def inicializar_excel():
 
         estilizar(c)
         estilizar(h)
-
         wb.save(EXCEL_FILE)
 
 
@@ -117,7 +120,7 @@ def contador():
 
 
 # =======================================
-# MODIFICAR CONTADORES
+# MODIFICAR
 # =======================================
 @app.route("/modificar", methods=["POST"])
 def modificar():
@@ -165,7 +168,7 @@ def nueva_categoria():
 
 
 # =======================================
-# GUARDAR EXCEL
+# GUARDAR
 # =======================================
 @app.route("/guardar", methods=["POST"])
 def guardar():
@@ -188,9 +191,8 @@ def guardar():
             conteo.append([cat, cant, fecha, session["ruta"]])
 
         hist.append([
-            fecha, hora, session["ruta"],
-            session["usuario"], cat, cant,
-            session["vehiculos_hoy"]
+            fecha, hora, session["ruta"], session["usuario"],
+            cat, cant, session["vehiculos_hoy"]
         ])
 
     for c, n in session["conteos"].items():
@@ -204,11 +206,7 @@ def guardar():
     total = sum(row[1].value for row in conteo.iter_rows(min_row=2)
                 if row[0].value != "N° Vehículos")
 
-    for i, row in enumerate(conteo.iter_rows(min_row=2), start=2):
-        if row[0].value == "N° Vehículos":
-            conteo.delete_rows(i)
-            break
-
+    conteo.delete_rows(conteo.max_row)
     conteo.append(["N° Vehículos", total, fecha, session["ruta"]])
 
     wb.save(EXCEL_FILE)
@@ -221,53 +219,50 @@ def guardar():
 
 
 # =======================================
-# CERRAR SESIÓN + ENVIAR CORREO (RESEND)
+# CERRAR SESIÓN + CORREO (RENDER)
 # =======================================
 @app.route("/cerrar", methods=["POST"])
 def cerrar():
     EXCEL_FILE = archivo_excel()
 
     try:
-        with open(EXCEL_FILE, "rb") as f:
-            archivo_base64 = base64.b64encode(f.read()).decode()
+        remitente = os.environ.get("pinillamartin76@gmail.com")
+        contrasena = os.environ.get("uuli gnbs cecy tdod")
+        destinatario = os.environ.get("pinillamartin76@gmail.com", remitente)
 
-        payload = {
-            "from": "Registro Vehículos <onboarding@resend.dev>",
-            "to": [os.environ.get("pinillamartin76@gmail.com")],
-            "subject": "Registro de vehículos",
-            "html": f"""
-                <p><b>Usuario:</b> {session['usuario']}</p>
-                <p><b>Ruta:</b> {session['ruta']}</p>
-                <p>Archivo adjunto.</p>
-            """,
-            "attachments": [{
-                "filename": EXCEL_FILE,
-                "content": archivo_base64
-            }]
-        }
+        mensaje = MIMEMultipart()
+        mensaje["From"] = remitente
+        mensaje["To"] = destinatario
+        mensaje["Subject"] = "Registro de vehículos"
 
-        headers = {
-            "Authorization": f"Bearer {os.environ.get('RESEND_API_KEY')}",
-            "Content-Type": "application/json"
-        }
+        mensaje.attach(MIMEText(
+            f"Usuario: {session['usuario']}\nRuta: {session['ruta']}",
+            "plain"
+        ))
 
-        r = requests.post(
-            "https://api.resend.com/emails",
-            headers=headers,
-            json=payload
-        )
+        with open(EXCEL_FILE, "rb") as adj:
+            parte = MIMEBase("application", "octet-stream")
+            parte.set_payload(adj.read())
+            encoders.encode_base64(parte)
+            parte.add_header("Content-Disposition",
+                             f"attachment; filename={EXCEL_FILE}")
+            mensaje.attach(parte)
 
-        r.raise_for_status()
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.starttls()
+        server.login(remitente, contrasena)
+        server.send_message(mensaje)
+        server.quit()
 
         session.clear()
-        return jsonify(ok=True, mensaje="📧 El correo fue enviado exitosamente.")
+        return jsonify(ok=True, mensaje="📧 Correo enviado exitosamente.")
 
     except Exception as e:
-        return jsonify(ok=False, mensaje=f"No se pudo enviar el correo: {e}")
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+        return jsonify(ok=False, mensaje=str(e))
 
 
-
-
+# =======================================
+# RUN
+# =======================================
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
