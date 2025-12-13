@@ -1,13 +1,10 @@
-from flask import Flask, render_template, request, redirect, session, url_for, jsonify
+from flask import Flask, render_template, request, redirect, session, jsonify
 import openpyxl
-from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
+from openpyxl.styles import Font, PatternFill, Border, Side
 from datetime import datetime, date
 import os
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
-from email.mime.text import MIMEText
-from email import encoders
+import base64
+import requests
 
 app = Flask(__name__)
 app.secret_key = "super_secret_key_123"
@@ -16,10 +13,8 @@ app.secret_key = "super_secret_key_123"
 # ARCHIVO DINÁMICO POR USUARIO + RUTA
 # =======================================
 def archivo_excel():
-    usuario = session.get("usuario", "user")
-    ruta = session.get("ruta", "ruta")
-    usuario = usuario.replace(" ", "_")
-    ruta = ruta.replace(" ", "_")
+    usuario = session.get("usuario", "user").replace(" ", "_")
+    ruta = session.get("ruta", "ruta").replace(" ", "_")
     return f"registro_{usuario}_{ruta}.xlsx"
 
 
@@ -40,8 +35,12 @@ categorias_base = [
 def estilizar(ws):
     header_font = Font(bold=True)
     header_fill = PatternFill("solid", fgColor="D9D9D9")
-    border = Border(left=Side(style="thin"), right=Side(style="thin"),
-                    top=Side(style="thin"), bottom=Side(style="thin"))
+    border = Border(
+        left=Side(style="thin"),
+        right=Side(style="thin"),
+        top=Side(style="thin"),
+        bottom=Side(style="thin")
+    )
 
     for c in ws[1]:
         c.font = header_font
@@ -87,7 +86,7 @@ def login():
         usuario = request.form["usuario"].strip()
         ruta = request.form["ruta"].strip()
 
-        if usuario == "" or ruta == "":
+        if not usuario or not ruta:
             return render_template("login.html", error="Debes completar Usuario y Ruta")
 
         session["usuario"] = usuario
@@ -103,20 +102,22 @@ def login():
 
 
 # =======================================
-# CONTADOR PRINCIPAL
+# CONTADOR
 # =======================================
 @app.route("/contador")
 def contador():
     if "usuario" not in session:
         return redirect("/")
-    return render_template("contador.html",
-                           categorias_base=categorias_base,
-                           conteos=session["conteos"],
-                           nuevas=session["nuevas"])
+    return render_template(
+        "contador.html",
+        categorias_base=categorias_base,
+        conteos=session["conteos"],
+        nuevas=session["nuevas"]
+    )
 
 
 # =======================================
-# SUMAR / RESTAR
+# MODIFICAR CONTADORES
 # =======================================
 @app.route("/modificar", methods=["POST"])
 def modificar():
@@ -142,29 +143,29 @@ def modificar():
             session["vehiculos_hoy"] -= 1
 
     session.modified = True
-    return jsonify({"ok": True})
+    return jsonify(ok=True)
 
 
 # =======================================
-# CREAR NUEVA CATEGORÍA
+# NUEVA CATEGORÍA
 # =======================================
 @app.route("/nueva_categoria", methods=["POST"])
 def nueva_categoria():
     nombre = request.form["nombre"].strip()
 
-    if nombre == "":
-        return jsonify({"error": "Debe escribir un nombre"})
+    if not nombre:
+        return jsonify(error="Debe escribir un nombre")
 
     if nombre in session["conteos"] or nombre in session["nuevas"]:
-        return jsonify({"error": "La categoría ya existe"})
+        return jsonify(error="La categoría ya existe")
 
     session["nuevas"][nombre] = 0
     session.modified = True
-    return jsonify({"ok": True})
+    return jsonify(ok=True)
 
 
 # =======================================
-# GUARDAR EXCEL + ENVIAR CORREO
+# GUARDAR EXCEL
 # =======================================
 @app.route("/guardar", methods=["POST"])
 def guardar():
@@ -173,27 +174,24 @@ def guardar():
     conteo = wb["Conteo"]
     hist = wb["Historial"]
 
-    usuario = session["usuario"]
-    ruta = session["ruta"]
     fecha = date.today().strftime("%d-%m-%Y")
     hora = datetime.now().strftime("%H:%M:%S")
 
     def actualizar(cat, cant):
-        encontrada = False
         for row in conteo.iter_rows(min_row=2):
             if row[0].value == cat:
-                row[1].value = (row[1].value or 0) + cant
+                row[1].value += cant
                 row[2].value = fecha
-                row[3].value = ruta
-                encontrada = True
+                row[3].value = session["ruta"]
                 break
+        else:
+            conteo.append([cat, cant, fecha, session["ruta"]])
 
-        # ➕ Si no existe, crear la fila en Conteo
-        if not encontrada:
-            conteo.append([cat, cant, fecha, ruta])
-
-        # ❗ Historial NO SE TOCA
-        hist.append([fecha, hora, ruta, usuario, cat, cant, session["vehiculos_hoy"]])
+        hist.append([
+            fecha, hora, session["ruta"],
+            session["usuario"], cat, cant,
+            session["vehiculos_hoy"]
+        ])
 
     for c, n in session["conteos"].items():
         if n > 0:
@@ -203,22 +201,15 @@ def guardar():
         if n > 0:
             actualizar(c, n)
 
-    total = sum([
-        row[1].value for row in conteo.iter_rows(min_row=2)
-        if row[0].value != "N° Vehículos"
-    ])
-# Buscar y eliminar fila "N° Vehículos" si existe
-    fila_total_idx = None
+    total = sum(row[1].value for row in conteo.iter_rows(min_row=2)
+                if row[0].value != "N° Vehículos")
+
     for i, row in enumerate(conteo.iter_rows(min_row=2), start=2):
         if row[0].value == "N° Vehículos":
-            fila_total_idx = i
+            conteo.delete_rows(i)
             break
 
-    if fila_total_idx:
-        conteo.delete_rows(fila_total_idx)
-
-    # Agregar siempre al final
-    conteo.append(["N° Vehículos", total, fecha, ruta])
+    conteo.append(["N° Vehículos", total, fecha, session["ruta"]])
 
     wb.save(EXCEL_FILE)
 
@@ -226,64 +217,57 @@ def guardar():
     session["nuevas"] = {c: 0 for c in session["nuevas"]}
     session.modified = True
 
-
-    return jsonify({"ok": True, "mensaje": "Datos guardados correctamente."})
+    return jsonify(ok=True, mensaje="Datos guardados correctamente.")
 
 
 # =======================================
-# CERRAR SESIÓN
+# CERRAR SESIÓN + ENVIAR CORREO (RESEND)
 # =======================================
 @app.route("/cerrar", methods=["POST"])
 def cerrar():
     EXCEL_FILE = archivo_excel()
 
     try:
-        remitente = os.environ.get("pinillamartin76@gmail.com")
-        contrasena = os.environ.get("uuli gnbs cecy tdod")
-        destinatario = os.environ.get("pinillamartin76@gmail.com")
+        with open(EXCEL_FILE, "rb") as f:
+            archivo_base64 = base64.b64encode(f.read()).decode()
 
-        mensaje = MIMEMultipart()
-        mensaje["From"] = remitente
-        mensaje["To"] = destinatario
-        mensaje["Subject"] = "Registro de vehículos"
+        payload = {
+            "from": "Registro Vehículos <onboarding@resend.dev>",
+            "to": [os.environ.get("pinillamartin76@gmail.com")],
+            "subject": "Registro de vehículos",
+            "html": f"""
+                <p><b>Usuario:</b> {session['usuario']}</p>
+                <p><b>Ruta:</b> {session['ruta']}</p>
+                <p>Archivo adjunto.</p>
+            """,
+            "attachments": [{
+                "filename": EXCEL_FILE,
+                "content": archivo_base64
+            }]
+        }
 
-        texto = f"""
-Usuario: {session["usuario"]}
-Ruta: {session["ruta"]}
-Archivo enviado correctamente.
-"""
-        mensaje.attach(MIMEText(texto, "plain"))
+        headers = {
+            "Authorization": f"Bearer {os.environ.get('RESEND_API_KEY')}",
+            "Content-Type": "application/json"
+        }
 
-        with open(EXCEL_FILE, "rb") as adj:
-            parte = MIMEBase("application", "octet-stream")
-            parte.set_payload(adj.read())
-            encoders.encode_base64(parte)
-            parte.add_header(
-                "Content-Disposition",
-                f"attachment; filename={EXCEL_FILE}"
-            )
-            mensaje.attach(parte)
+        r = requests.post(
+            "https://api.resend.com/emails",
+            headers=headers,
+            json=payload
+        )
 
-        server = smtplib.SMTP("smtp.gmail.com", 587)
-        server.starttls()
-        server.login(remitente, contrasena)
-        server.send_message(mensaje)
-        server.quit()
+        r.raise_for_status()
 
         session.clear()
-        return jsonify({
-            "ok": True,
-            "mensaje": "📧 El correo fue enviado exitosamente."
-        })
+        return jsonify(ok=True, mensaje="📧 El correo fue enviado exitosamente.")
 
     except Exception as e:
-        return jsonify({
-            "ok": False,
-            "mensaje": f"No se pudo enviar el correo: {e}"
-        })
+        return jsonify(ok=False, mensaje=f"No se pudo enviar el correo: {e}")
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
 
 
 
