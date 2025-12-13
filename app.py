@@ -4,6 +4,7 @@ from openpyxl.styles import Font, PatternFill, Border, Side
 from datetime import datetime, date
 import os
 import requests
+import base64
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "super_secret_key_123")
@@ -202,14 +203,12 @@ def guardar():
         if row[0].value != "N° Vehículos"
     )
 
-    # eliminar fila total previa
     for i, row in enumerate(conteo.iter_rows(min_row=2), start=2):
         if row[0].value == "N° Vehículos":
             conteo.delete_rows(i)
             break
 
     conteo.append(["N° Vehículos", total, fecha, session["ruta"]])
-
     wb.save(archivo)
 
     session["conteos"] = {c: 0 for c in categorias_base}
@@ -220,30 +219,44 @@ def guardar():
 
 
 # =======================================
-# ENVÍO DE CORREO CON RESEND
+# ENVÍO DE CORREO CON RESEND (CORRECTO)
 # =======================================
 def enviar_correo_resend(archivo):
-    url = "https://api.resend.com/emails"
+    api_key = os.environ.get("RESEND_API_KEY")
+    mail_to = os.environ.get("MAIL_TO")
 
-    headers = {
-        "Authorization": f"Bearer {os.environ['RESEND_API_KEY']}"
-    }
-
-    data = {
-        "from": "Registro Vehículos <onboarding@resend.dev>",
-        "to": os.environ["MAIL_TO"],
-        "subject": "Registro de vehículos",
-        "text": "Adjunto encontrarás el archivo de registro de vehículos."
-    }
+    if not api_key:
+        raise Exception("RESEND_API_KEY no definida")
+    if not mail_to:
+        raise Exception("MAIL_TO no definido")
 
     with open(archivo, "rb") as f:
-        files = {
-            "attachments[0][content]": f,
-            "attachments[0][filename]": archivo
-        }
+        archivo_base64 = base64.b64encode(f.read()).decode()
 
-        r = requests.post(url, headers=headers, data=data, files=files)
-        r.raise_for_status()
+    payload = {
+        "from": "Registro Vehículos <onboarding@resend.dev>",
+        "to": [mail_to],
+        "subject": "Registro de vehículos",
+        "text": "Adjunto encontrarás el archivo de registro de vehículos.",
+        "attachments": [
+            {
+                "filename": archivo,
+                "content": archivo_base64
+            }
+        ]
+    }
+
+    r = requests.post(
+        "https://api.resend.com/emails",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        },
+        json=payload
+    )
+
+    if r.status_code not in (200, 201):
+        raise Exception(r.text)
 
 
 # =======================================
