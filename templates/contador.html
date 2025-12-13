@@ -117,9 +117,9 @@
             Guardar Datos
         </button>
 
-        <a href="/cerrar" class="btn btn-danger btn-lg">
-            Cerrar Sesión
-        </a>
+        <button class="btn btn-danger btn-lg" onclick="cerrarSesion()">
+    Cerrar Sesión
+        </button>
     </div>
 
     <div id="msg" class="text-center mt-3"></div>
@@ -211,6 +211,10 @@
     // ===========================
     //  GUARDAR DATOS
     // ===========================
+
+    // ===========================
+    //  GUARDAR DATOS
+    // ===========================
     function guardarDatos() {
 
         if (!confirm("¿Seguro que deseas guardar los datos?")) return;
@@ -219,14 +223,40 @@
         .then(r => r.json())
         .then(data => {
 
+            // Mensaje dinámico según lo que diga app.py
+            let msg = data.mensaje || "Datos guardados correctamente.";
+
             document.getElementById("msg").innerHTML =
-                `<div class='alert alert-success'>Datos guardados correctamente.</div>`;
+                `<div class='alert alert-success'>${msg}</div>`;
 
             // Reiniciar contadores visuales
             document.querySelectorAll(".contador-num").forEach(c => c.innerText = "0");
-            document.getElementById("nuevasCategorias").innerHTML = "";
         });
     }
+
+function cerrarSesion() {
+    if (!confirm("¿Seguro que deseas cerrar sesión y enviar el correo?")) return;
+
+    fetch("/cerrar", { method: "POST" })
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById("msg").innerHTML =
+                `<div class="alert alert-success">${data.mensaje}</div>`;
+
+            if (data.ok) {
+                setTimeout(() => {
+                    window.location.href = "/";
+                }, 2000);
+            }
+        })
+        .catch(err => {
+            alert("Error al cerrar sesión");
+        });
+}
+
+
+</script>
+
 </script>
 
 </body>
