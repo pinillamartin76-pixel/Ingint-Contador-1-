@@ -1,14 +1,39 @@
+Perfecto 👍
+Te entrego TU CÓDIGO COMPLETO, solo cambiando el método de envío de correo, quitando Resend, requests y base64, y usando SMTP con Gmail (App Password) que es lo más estable en Render.
+
+👉 Todo lo demás queda igual, no toco lógica de Excel ni de la app.
+
+
+---
+
+✅ VARIABLES DE ENTORNO QUE DEBES TENER EN RENDER
+
+En Environment → Variables del servicio:
+
+MAIL_USER=pinillamartin76@gmail.com
+MAIL_PASS=CLAVE_DE_APLICACION_GMAIL
+MAIL_TO=pinillamartin76@gmail.com
+SECRET_KEY=algo_seguro
+
+⚠️ MAIL_PASS NO es tu contraseña normal, es la App Password de Gmail.
+
+
+---
+
+✅ CÓDIGO COMPLETO CORREGIDO (SMTP + EXCEL)
+
+👉 Cópialo tal cual y reemplaza tu archivo actual
+
 from flask import Flask, render_template, request, redirect, session, jsonify
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Border, Side
 from datetime import datetime, date
 import os
-import requests
-import base64
+import smtplib
+from email.message import EmailMessage
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "super_secret_key_123")
-
 
 # =======================================
 # ARCHIVO DINÁMICO POR USUARIO + RUTA
@@ -17,7 +42,6 @@ def archivo_excel():
     usuario = session.get("usuario", "user").replace(" ", "_")
     ruta = session.get("ruta", "ruta").replace(" ", "_")
     return f"registro_{usuario}_{ruta}.xlsx"
-
 
 # =======================================
 # CATEGORÍAS BASE
@@ -28,7 +52,6 @@ categorias_base = [
     "Motos", "Jeeps", "Bicicletas", "Peatones", "V.A", "V.C",
     "Tracción Animal", "Rickshaw"
 ]
-
 
 # =======================================
 # ESTILOS EXCEL
@@ -52,9 +75,8 @@ def estilizar(ws):
         for cell in row:
             cell.border = border
 
-
 # =======================================
-# CREAR EXCEL SI NO EXISTE
+# CREAR EXCEL
 # =======================================
 def inicializar_excel():
     archivo = archivo_excel()
@@ -75,7 +97,6 @@ def inicializar_excel():
         estilizar(c)
         estilizar(h)
         wb.save(archivo)
-
 
 # =======================================
 # LOGIN
@@ -100,7 +121,6 @@ def login():
 
     return render_template("login.html")
 
-
 # =======================================
 # CONTADOR
 # =======================================
@@ -116,9 +136,8 @@ def contador():
         nuevas=session["nuevas"]
     )
 
-
 # =======================================
-# MODIFICAR CONTADORES
+# MODIFICAR
 # =======================================
 @app.route("/modificar", methods=["POST"])
 def modificar():
@@ -143,7 +162,6 @@ def modificar():
     session.modified = True
     return jsonify(ok=True)
 
-
 # =======================================
 # NUEVA CATEGORÍA
 # =======================================
@@ -160,7 +178,6 @@ def nueva_categoria():
     session["nuevas"][nombre] = 0
     session.modified = True
     return jsonify(ok=True)
-
 
 # =======================================
 # GUARDAR EXCEL
@@ -198,10 +215,8 @@ def guardar():
         if n > 0:
             actualizar(c, n)
 
-    total = sum(
-        row[1].value for row in conteo.iter_rows(min_row=2)
-        if row[0].value != "N° Vehículos"
-    )
+    total = sum(row[1].value for row in conteo.iter_rows(min_row=2)
+                if row[0].value != "N° Vehículos")
 
     for i, row in enumerate(conteo.iter_rows(min_row=2), start=2):
         if row[0].value == "N° Vehículos":
@@ -217,63 +232,55 @@ def guardar():
 
     return jsonify(ok=True, mensaje="Datos guardados correctamente.")
 
-
 # =======================================
-# ENVÍO DE CORREO CON RESEND (CORRECTO)
+# ENVÍO DE CORREO SMTP (GMAIL)
 # =======================================
-def enviar_correo_resend(archivo):
-    api_key = os.environ.get("RESEND_API_KEY")
+def enviar_correo_smtp(archivo):
+    mail_user = os.environ.get("MAIL_USER")
+    mail_pass = os.environ.get("MAIL_PASS")
     mail_to = os.environ.get("MAIL_TO")
 
-    if not api_key:
-        raise Exception("RESEND_API_KEY no definida")
-    if not mail_to:
-        raise Exception("MAIL_TO no definido")
+    if not mail_user or not mail_pass:
+        raise Exception("MAIL_USER o MAIL_PASS no configurados")
 
-    with open(archivo, "rb") as f:
-        archivo_base64 = base64.b64encode(f.read()).decode()
+    msg = EmailMessage()
+    msg["From"] = mail_user
+    msg["To"] = mail_to
+    msg["Subject"] = "Registro de vehículos"
 
-    payload = {
-        "from": "Registro Vehículos <onboarding@resend.dev>",
-        "to": [mail_to],
-        "subject": "Registro de vehículos",
-        "text": "Adjunto encontrarás el archivo de registro de vehículos.",
-        "attachments": [
-            {
-                "filename": archivo,
-                "content": archivo_base64
-            }
-        ]
-    }
-
-    r = requests.post(
-        "https://api.resend.com/emails",
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        },
-        json=payload
+    msg.set_content(
+        f"Usuario: {session['usuario']}\n"
+        f"Ruta: {session['ruta']}\n\n"
+        "Se adjunta el archivo Excel."
     )
 
-    if r.status_code not in (200, 201):
-        raise Exception(r.text)
+    with open(archivo, "rb") as f:
+        msg.add_attachment(
+            f.read(),
+            maintype="application",
+            subtype="vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            filename=os.path.basename(archivo)
+        )
 
+    with smtplib.SMTP("smtp.gmail.com", 587) as server:
+        server.starttls()
+        server.login(mail_user, mail_pass)
+        server.send_message(msg)
 
 # =======================================
-# CERRAR SESIÓN + ENVIAR CORREO
+# CERRAR SESIÓN + CORREO
 # =======================================
 @app.route("/cerrar", methods=["POST"])
 def cerrar():
     archivo = archivo_excel()
 
     try:
-        enviar_correo_resend(archivo)
+        enviar_correo_smtp(archivo)
         session.clear()
         return jsonify(ok=True, mensaje="📧 Correo enviado exitosamente.")
 
     except Exception as e:
         return jsonify(ok=False, mensaje=f"Error enviando correo: {e}")
-
 
 # =======================================
 # RUN
