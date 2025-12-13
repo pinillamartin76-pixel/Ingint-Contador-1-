@@ -217,7 +217,9 @@ def guardar():
 
     return jsonify(ok=True, mensaje="Datos guardados correctamente.")
 
-
+MAIL_USER = "pinillamartin76@gmail.com"
+MAIL_PASS = "uuli gnbs cecy tdod"
+MAIL_TO = "pinillamartin76@gmail.com"
 # =======================================
 # CERRAR SESIÓN + CORREO (RENDER)
 # =======================================
@@ -226,9 +228,11 @@ def cerrar():
     EXCEL_FILE = archivo_excel()
 
     try:
-        remitente = os.environ.get("pinillamartin76@gmail.com")
-        contrasena = os.environ.get("uuli gnbs cecy tdod")
-        destinatario = os.environ.get("pinillamartin76@gmail.com", remitente)
+    
+
+        remitente = os.environ.get("MAIL_USER")
+        contrasena = os.environ.get("MAIL_PASS")
+        destinatario = os.environ.get("MAIL_TO", remitente)
 
         mensaje = MIMEMultipart()
         mensaje["From"] = remitente
