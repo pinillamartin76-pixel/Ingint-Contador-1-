@@ -219,7 +219,7 @@ def guardar():
 
 
 # =======================================
-# ENVÍO DE CORREO CON RESEND (EXCEL)
+# ENVÍO DE CORREO CON RESEND (CORRECTO)
 # =======================================
 def enviar_correo_resend(archivo):
     api_key = os.environ.get("RESEND_API_KEY")
@@ -231,13 +231,13 @@ def enviar_correo_resend(archivo):
         raise Exception("MAIL_TO no definido")
 
     with open(archivo, "rb") as f:
-        archivo_base64 = base64.b64encode(f.read()).decode("utf-8")
+        archivo_base64 = base64.b64encode(f.read()).decode()
 
     payload = {
         "from": "Registro Vehículos <onboarding@resend.dev>",
         "to": [mail_to],
         "subject": "Registro de vehículos",
-        "text": "Adjunto encontrarás el archivo Excel con el registro de vehículos.",
+        "text": "Adjunto encontrarás el archivo de registro de vehículos.",
         "attachments": [
             {
                 "filename": archivo,
@@ -246,17 +246,13 @@ def enviar_correo_resend(archivo):
         ]
     }
 
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-    }
-
     r = requests.post(
         "https://api.resend.com/emails",
-        headers=headers,
-        json=payload,
-        timeout=30
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        },
+        json=payload
     )
 
     if r.status_code not in (200, 201):
@@ -264,7 +260,7 @@ def enviar_correo_resend(archivo):
 
 
 # =======================================
-# CERRAR SESIÓN + CORREO
+# CERRAR SESIÓN + ENVIAR CORREO
 # =======================================
 @app.route("/cerrar", methods=["POST"])
 def cerrar():
