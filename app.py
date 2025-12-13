@@ -1,29 +1,3 @@
-Perfecto 👍
-Te entrego TU CÓDIGO COMPLETO, solo cambiando el método de envío de correo, quitando Resend, requests y base64, y usando SMTP con Gmail (App Password) que es lo más estable en Render.
-
-👉 Todo lo demás queda igual, no toco lógica de Excel ni de la app.
-
-
----
-
-✅ VARIABLES DE ENTORNO QUE DEBES TENER EN RENDER
-
-En Environment → Variables del servicio:
-
-MAIL_USER=pinillamartin76@gmail.com
-MAIL_PASS=CLAVE_DE_APLICACION_GMAIL
-MAIL_TO=pinillamartin76@gmail.com
-SECRET_KEY=algo_seguro
-
-⚠️ MAIL_PASS NO es tu contraseña normal, es la App Password de Gmail.
-
-
----
-
-✅ CÓDIGO COMPLETO CORREGIDO (SMTP + EXCEL)
-
-👉 Cópialo tal cual y reemplaza tu archivo actual
-
 from flask import Flask, render_template, request, redirect, session, jsonify
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Border, Side
@@ -287,3 +261,4 @@ def cerrar():
 # =======================================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
