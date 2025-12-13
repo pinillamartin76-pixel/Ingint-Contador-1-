@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, session, jsonify
+from flask import Flask, render_template, request, redirect, session, jsonify, send_file
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Border, Side
 from datetime import datetime, date
@@ -207,6 +207,25 @@ def guardar():
     return jsonify(ok=True, mensaje="Datos guardados correctamente.")
 
 # =======================================
+# ABRIR / DESCARGAR EXCEL (NUEVO)
+# =======================================
+@app.route("/abrir_excel")
+def abrir_excel():
+    if "usuario" not in session:
+        return redirect("/")
+
+    archivo = archivo_excel()
+
+    if not os.path.exists(archivo):
+        return "Archivo no encontrado", 404
+
+    return send_file(
+        archivo,
+        as_attachment=True,
+        download_name=os.path.basename(archivo)
+    )
+
+# =======================================
 # ENVÍO DE CORREO SMTP (GMAIL)
 # =======================================
 def enviar_correo_smtp(archivo):
@@ -261,4 +280,3 @@ def cerrar():
 # =======================================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
-
