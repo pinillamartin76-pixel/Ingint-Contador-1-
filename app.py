@@ -238,9 +238,9 @@ def cerrar():
     EXCEL_FILE = archivo_excel()
 
     try:
-        remitente = "pinillamartin76@gmail.com"
-        contrasena = "uuli gnbs cecy tdod"
-        destinatario = "pinillamartin76@gmail.com"
+        remitente = os.environ.get("pinillamartin76@gmail.com")
+        contrasena = os.environ.get("uuli gnbs cecy tdod")
+        destinatario = os.environ.get("pinillamartin76@gmail.com")
 
         mensaje = MIMEMultipart()
         mensaje["From"] = remitente
@@ -282,8 +282,8 @@ Archivo enviado correctamente.
             "mensaje": f"No se pudo enviar el correo: {e}"
         })
 
-
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
 
 
