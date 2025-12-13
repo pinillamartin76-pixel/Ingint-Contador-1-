@@ -9,6 +9,14 @@
 <div class="container mt-5 col-10 col-md-5">
     <div class="card shadow p-4">
 
+        <!-- LOGO -->
+        <div class="text-center mb-3">
+            <img src="{{ url_for('static', filename='logo.jpg') }}"
+                 alt="Logo"
+                 style="max-width: 180px;"
+                 class="img-fluid">
+        </div>
+
         <h3 class="text-center mb-4">Ingreso</h3>
 
         {% if error %}
@@ -24,6 +32,7 @@
 
             <button class="btn btn-primary w-100">Ingresar</button>
         </form>
+
     </div>
 </div>
 
