@@ -48,7 +48,7 @@ def estilizar(ws):
             cell.border = border
 
 # =======================================
-# CREAR EXCEL
+# CREAR EXCEL INICIAL
 # =======================================
 def inicializar_excel():
     archivo = archivo_excel()
@@ -109,7 +109,7 @@ def contador():
     )
 
 # =======================================
-# MODIFICAR
+# MODIFICAR CONTEO
 # =======================================
 @app.route("/modificar", methods=["POST"])
 def modificar():
@@ -152,7 +152,7 @@ def nueva_categoria():
     return jsonify(ok=True)
 
 # =======================================
-# GUARDAR EXCEL
+# GUARDAR EXCEL (VERSIÓN CORRECTA)
 # =======================================
 @app.route("/guardar", methods=["POST"])
 def guardar():
@@ -187,8 +187,17 @@ def guardar():
         if n > 0:
             actualizar(c, n)
 
-    total = sum(row[1].value for row in conteo.iter_rows(min_row=2)
-                if row[0].value != "N° Vehículos")
+    # ❌ eliminar N° Vehículos anterior
+    for i, row in enumerate(conteo.iter_rows(min_row=2), start=2):
+        if row[0].value == "N° Vehículos":
+            conteo.delete_rows(i)
+            break
+
+    # ➕ calcular total
+    total = sum(
+        row[1].value for row in conteo.iter_rows(min_row=2)
+        if row[0].value != "N° Vehículos"
+    )
 
     conteo.append(["N° Vehículos", total, fecha, session["ruta"]])
     wb.save(archivo)
@@ -219,7 +228,7 @@ def abrir_excel():
     )
 
 # =======================================
-# CERRAR SESIÓN (SIN CORREO)
+# CERRAR SESIÓN
 # =======================================
 @app.route("/cerrar", methods=["POST"])
 def cerrar():
