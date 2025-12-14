@@ -28,49 +28,33 @@
 
 <div class="container mt-4 mb-5">
 
-    <div class="d-flex justify-content-between mb-3">
-        <h2 class="text-primary">Registro de Vehículos</h2>
-
-    </div>
+    <h2 class="text-primary mb-3">Registro de Vehículos</h2>
 
     <h5><b>Usuario:</b> {{ session.usuario }} | <b>Ruta:</b> {{ session.ruta }}</h5>
 
     <hr>
 
-    <!-- ============================
-         CATEGORÍAS BASE
-    ============================ -->
     <h4 class="text-secondary mb-3">Categorías</h4>
 
     {% for c in categorias_base %}
     <div class="categoria-card shadow-sm">
         <div class="d-flex align-items-center justify-content-between">
-
-            <div>
-                <b>{{ c }}</b>
-            </div>
-
+            <b>{{ c }}</b>
             <div class="d-flex align-items-center">
                 <button class="btn btn-danger btn-count me-2"
                         onclick="modificar('{{ c }}', 'restar')">-</button>
 
-                <span id="cont_{{ c }}" class="contador-num">
-                    {{ conteos[c] }}
-                </span>
+                <span id="cont_{{ c }}" class="contador-num">{{ conteos[c] }}</span>
 
                 <button class="btn btn-primary btn-count ms-2"
                         onclick="modificar('{{ c }}', 'sumar')">+</button>
             </div>
-
         </div>
     </div>
     {% endfor %}
 
     <hr>
 
-    <!-- ============================
-         NUEVA CATEGORÍA
-    ============================ -->
     <h4 class="text-secondary mb-3">Añadir nueva categoría</h4>
 
     <div class="input-group mb-3">
@@ -78,167 +62,82 @@
         <button class="btn btn-primary" onclick="agregarCategoria()">Agregar</button>
     </div>
 
-    <!-- Lista dinámica -->
     <div id="nuevasCategorias">
-
         {% for c, n in nuevas.items() %}
-        <div class="categoria-card shadow-sm" id="box_{{ c }}">
+        <div class="categoria-card shadow-sm">
             <div class="d-flex align-items-center justify-content-between">
-
-                <div>
-                    <b>{{ c }}</b> <span class="text-muted">(nuevo)</span>
-                </div>
-
+                <b>{{ c }} <span class="text-muted">(nuevo)</span></b>
                 <div class="d-flex align-items-center">
                     <button class="btn btn-danger btn-count me-2"
                             onclick="modificar('{{ c }}', 'restar')">-</button>
-
-                    <span id="cont_{{ c }}" class="contador-num">
-                        {{ n }}
-                    </span>
-
+                    <span id="cont_{{ c }}" class="contador-num">{{ n }}</span>
                     <button class="btn btn-primary btn-count ms-2"
                             onclick="modificar('{{ c }}', 'sumar')">+</button>
                 </div>
-
             </div>
         </div>
         {% endfor %}
-
     </div>
 
     <hr class="mt-4">
 
-    <!-- ============================
-         BOTONES FINALES
-    ============================ -->
     <div class="text-center d-flex justify-content-center gap-3 flex-wrap">
-    <button class="btn btn-success btn-lg" onclick="guardarDatos()">
-        Guardar Datos
-    </button>
-
-    <button class="btn btn-primary btn-lg" onclick="descargarExcel()">
-        Descargar Excel
-    </button>
-
-    <button class="btn btn-danger btn-lg" onclick="cerrarSesion()">
-        Cerrar Sesión
-    </button>
-</div>
+        <button class="btn btn-success btn-lg" onclick="guardarDatos()">Guardar Datos</button>
+        <button class="btn btn-primary btn-lg" onclick="descargarExcel()">Descargar Excel</button>
+        <button class="btn btn-danger btn-lg" onclick="cerrarSesion()">Cerrar Sesión</button>
     </div>
 
     <div id="msg" class="text-center mt-3"></div>
-
 </div>
 
-
-<!-- =============================
-     SCRIPTS
-============================= -->
 <script>
-    // ===========================
-    //  SUMAR / RESTAR
-    // ===========================
-    function modificar(cat, accion) {
-
-        fetch("/modificar", {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: `categoria=${encodeURIComponent(cat)}&accion=${accion}`
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (data.ok) {
-                let el = document.getElementById("cont_" + cat);
-                let num = parseInt(el.innerText);
-
-                if (accion === "sumar") num++;
-                if (accion === "restar" && num > 0) num--;
-
-                el.innerText = num;
-            }
-        });
-    }
-
-
-    // ===========================
-    //  AGREGAR CATEGORÍA
-    // ===========================
-    function agregarCategoria() {
-        let nombre = document.getElementById("newcat").value.trim();
-        if (nombre === "") {
-            alert("Debe escribir un nombre");
-            return;
+function modificar(cat, accion) {
+    fetch("/modificar", {
+        method: "POST",
+        headers: {"Content-Type": "application/x-www-form-urlencoded"},
+        body: `categoria=${encodeURIComponent(cat)}&accion=${accion}`
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            let el = document.getElementById("cont_" + cat);
+            let num = parseInt(el.innerText);
+            if (accion === "sumar") num++;
+            if (accion === "restar" && num > 0) num--;
+            el.innerText = num;
         }
+    });
+}
 
-        fetch("/nueva_categoria", {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: `nombre=${encodeURIComponent(nombre)}`
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (data.error) {
-                alert(data.error);
-                return;
-            }
+function agregarCategoria() {
+    let nombre = document.getElementById("newcat").value.trim();
+    if (!nombre) return alert("Debe escribir un nombre");
 
-            // Agregar visualmente al HTML
-            const cont = document.getElementById("nuevasCategorias");
+    fetch("/nueva_categoria", {
+        method: "POST",
+        headers: {"Content-Type": "application/x-www-form-urlencoded"},
+        body: `nombre=${encodeURIComponent(nombre)}`
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) return alert(data.error);
+        location.reload();
+    });
+}
 
-            cont.innerHTML += `
-                <div class="categoria-card shadow-sm" id="box_${nombre}">
-                    <div class="d-flex align-items-center justify-content-between">
+function guardarDatos() {
+    if (!confirm("¿Seguro que deseas guardar los datos?")) return;
 
-                        <div>
-                            <b>${nombre}</b> <span class="text-muted">(nuevo)</span>
-                        </div>
+    fetch("/guardar", {method: "POST"})
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById("msg").innerHTML =
+            `<div class="alert alert-success">${data.mensaje}</div>`;
+        document.querySelectorAll(".contador-num").forEach(c => c.innerText = "0");
+    });
+}
 
-                        <div class="d-flex align-items-center">
-                            <button class="btn btn-danger btn-count me-2"
-                                    onclick="modificar('${nombre}', 'restar')">-</button>
-
-                            <span id="cont_${nombre}" class="contador-num">0</span>
-
-                            <button class="btn btn-primary btn-count ms-2"
-                                    onclick="modificar('${nombre}', 'sumar')">+</button>
-                        </div>
-
-                    </div>
-                </div>
-            `;
-
-            document.getElementById("newcat").value = "";
-        });
-    }
-
-
-    // ===========================
-    //  GUARDAR DATOS
-    // ===========================
-
-    // ===========================
-    //  GUARDAR DATOS
-    // ===========================
-    function guardarDatos() {
-
-        if (!confirm("¿Seguro que deseas guardar los datos?")) return;
-
-        fetch("/guardar", { method: "POST" })
-        .then(r => r.json())
-        .then(data => {
-
-            // Mensaje dinámico según lo que diga app.py
-            let msg = data.mensaje || "Datos guardados correctamente.";
-
-            document.getElementById("msg").innerHTML =
-                `<div class='alert alert-success'>${msg}</div>`;
-
-            // Reiniciar contadores visuales
-            document.querySelectorAll(".contador-num").forEach(c => c.innerText = "0");
-        });
-    }
-
+/* 🔴 CAMBIO CLAVE AQUÍ */
 function cerrarSesion() {
     if (!confirm("¿Seguro que deseas cerrar sesión y enviar el correo?")) return;
 
@@ -246,29 +145,23 @@ function cerrarSesion() {
         .then(r => r.json())
         .then(data => {
             document.getElementById("msg").innerHTML =
-                `<div class="alert alert-success">${data.mensaje}</div>`;
+                `<div class="alert ${data.ok ? "alert-success" : "alert-danger"}">
+                    ${data.mensaje}
+                 </div>`;
 
             if (data.ok) {
-                setTimeout(() => {
-                    window.location.href = "/";
-                }, 2000);
+                setTimeout(() => window.location.href = "/", 2000);
             }
         })
-        .catch(err => {
-            alert("Error al cerrar sesión");
+        .catch(() => {
+            alert("Error de conexión con el servidor");
         });
 }
 
-
-</script>
-<script>
 function descargarExcel() {
-    // Descarga directa del archivo Excel
     window.open("/abrir_excel", "_blank");
 }
-</script>
 </script>
 
 </body>
 </html>
-
