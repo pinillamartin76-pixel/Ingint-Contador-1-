@@ -5,6 +5,10 @@ from datetime import datetime, date
 import os
 import smtplib
 from email.message import EmailMessage
+import json
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "super_secret_key_123")
@@ -206,6 +210,34 @@ def guardar():
 
     return jsonify(ok=True, mensaje="Datos guardados correctamente.")
 
+def subir_a_drive(archivo):
+    creds_info = json.loads(os.environ["GOOGLE_SERVICE_ACCOUNT_JSON"])
+
+    creds = service_account.Credentials.from_service_account_info(
+        creds_info,
+        scopes=["https://www.googleapis.com/auth/drive"]
+    )
+
+    service = build("drive", "v3", credentials=creds)
+
+    folder_id = os.environ["DRIVE_FOLDER_ID"]
+
+    file_metadata = {
+        "name": os.path.basename(archivo),
+        "parents": [folder_id]
+    }
+
+    media = MediaFileUpload(
+        archivo,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+    service.files().create(
+        body=file_metadata,
+        media_body=media,
+        fields="id"
+    ).execute()
+
 # =======================================
 # ABRIR / DESCARGAR EXCEL (NUEVO)
 # =======================================
@@ -268,15 +300,21 @@ def cerrar():
     archivo = archivo_excel()
 
     try:
-        enviar_correo_smtp(archivo)
+        subir_a_drive(archivo)
         session.clear()
-        return jsonify(ok=True, mensaje="📧 Correo enviado exitosamente.")
+        return jsonify(
+            ok=True,
+            mensaje="📁 Archivo guardado correctamente en Google Drive."
+        )
 
     except Exception as e:
-        return jsonify(ok=False, mensaje=f"Error enviando correo: {e}")
-
+        return jsonify(
+            ok=False,
+            mensaje=f"Error guardando en Drive: {e}"
+        )
 # =======================================
 # RUN
 # =======================================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
