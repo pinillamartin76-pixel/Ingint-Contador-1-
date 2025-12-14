@@ -248,34 +248,46 @@ def subir_a_drive(archivo):
     ).execute()
 
 
+import base64
+import requests
+
 def enviar_excel_por_correo(archivo):
-    remitente = os.environ.get("MAIL_USER")
-    contrasena = os.environ.get("MAIL_PASS")
+    api_key = os.environ.get("RESEND_API_KEY")
     destinatario = os.environ.get("MAIL_TO")
 
-    if not remitente or not contrasena or not destinatario:
-        raise Exception("Variables de correo no configuradas")
-
-    msg = EmailMessage()
-    msg["From"] = remitente
-    msg["To"] = destinatario
-    msg["Subject"] = "📊 Registro de Conteo de Vehículos"
-    msg.set_content("Se adjunta el archivo Excel generado automáticamente.")
+    if not api_key or not destinatario:
+        raise Exception("Variables RESEND_API_KEY o MAIL_TO no definidas")
 
     with open(archivo, "rb") as f:
-        file_data = f.read()
+        archivo_base64 = base64.b64encode(f.read()).decode()
 
-    msg.add_attachment(
-        file_data,
-        maintype="application",
-        subtype="vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        filename=os.path.basename(archivo)
+    payload = {
+        "from": "Conteo Vehicular <onboarding@resend.dev>",
+        "to": [destinatario],
+        "subject": "📊 Registro de Conteo de Vehículos",
+        "html": "<p>Se adjunta el archivo Excel generado automáticamente.</p>",
+        "attachments": [
+            {
+                "filename": os.path.basename(archivo),
+                "content": archivo_base64
+            }
+        ]
+    }
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+
+    r = requests.post(
+        "https://api.resend.com/emails",
+        json=payload,
+        headers=headers,
+        timeout=30
     )
 
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-        smtp.login(remitente, contrasena)
-        smtp.send_message(msg)
-
+    if r.status_code >= 400:
+        raise Exception(r.text)
 # =======================================
 # ABRIR / DESCARGAR EXCEL
 # =======================================
@@ -286,7 +298,7 @@ def abrir_excel():
 
     archivo = archivo_excel()
 
-    if not os.path.exists(archivo):
+    if not os.Spath.exists(archivo):
         return "Archivo no encontrado", 404
 
     return send_file(
@@ -357,5 +369,6 @@ def cerrar():
 # =======================================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
 
 
