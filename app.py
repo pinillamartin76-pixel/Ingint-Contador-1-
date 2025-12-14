@@ -247,6 +247,35 @@ def subir_a_drive(archivo):
         fields="id"
     ).execute()
 
+
+def enviar_excel_por_correo(archivo):
+    remitente = os.environ.get("MAIL_USER")
+    contrasena = os.environ.get("MAIL_PASS")
+    destinatario = os.environ.get("MAIL_TO")
+
+    if not remitente or not contrasena or not destinatario:
+        raise Exception("Variables de correo no configuradas")
+
+    msg = EmailMessage()
+    msg["From"] = remitente
+    msg["To"] = destinatario
+    msg["Subject"] = "📊 Registro de Conteo de Vehículos"
+    msg.set_content("Se adjunta el archivo Excel generado automáticamente.")
+
+    with open(archivo, "rb") as f:
+        file_data = f.read()
+
+    msg.add_attachment(
+        file_data,
+        maintype="application",
+        subtype="vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename=os.path.basename(archivo)
+    )
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+        smtp.login(remitente, contrasena)
+        smtp.send_message(msg)
+
 # =======================================
 # ABRIR / DESCARGAR EXCEL
 # =======================================
@@ -274,15 +303,16 @@ def cerrar():
     archivo = archivo_excel()
 
     try:
-        subir_a_drive(archivo)
+        enviar_excel_por_correo(archivo)
         session.clear()
-        return jsonify(ok=True, mensaje="📁 Archivo guardado correctamente en Google Drive.")
+        return jsonify(ok=True, mensaje="📧 Excel enviado automáticamente al correo.")
 
     except Exception as e:
-        return jsonify(ok=False, mensaje=f"Error guardando en Drive: {e}")
+        return jsonify(ok=False, mensaje=f"Error enviando correo: {e}")
 
 # =======================================
 # RUN
 # =======================================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
