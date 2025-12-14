@@ -300,19 +300,62 @@ def abrir_excel():
 # =======================================
 @app.route("/cerrar", methods=["POST"])
 def cerrar():
-    archivo = archivo_excel()
-
     try:
+        # 1️⃣ Guardar los datos antes de enviar
+        archivo = archivo_excel()
+        wb = openpyxl.load_workbook(archivo)
+        conteo = wb["Conteo"]
+        hist = wb["Historial"]
+
+        fecha = date.today().strftime("%d-%m-%Y")
+        hora = datetime.now().strftime("%H:%M:%S")
+
+        def actualizar(cat, cant):
+            for row in conteo.iter_rows(min_row=2):
+                if row[0].value == cat:
+                    row[1].value += cant
+                    row[2].value = fecha
+                    row[3].value = session["ruta"]
+                    break
+            else:
+                conteo.append([cat, cant, fecha, session["ruta"]])
+
+            hist.append([
+                fecha, hora, session["ruta"], session["usuario"],
+                cat, cant, session["vehiculos_hoy"]
+            ])
+
+        for c, n in session["conteos"].items():
+            if n > 0:
+                actualizar(c, n)
+
+        for c, n in session["nuevas"].items():
+            if n > 0:
+                actualizar(c, n)
+
+        wb.save(archivo)
+
+        # 2️⃣ Enviar correo
         enviar_excel_por_correo(archivo)
+
+        # 3️⃣ Limpiar sesión
         session.clear()
-        return jsonify(ok=True, mensaje="📧 Excel enviado automáticamente al correo.")
+
+        return jsonify(
+            ok=True,
+            mensaje="📧 Excel guardado y enviado automáticamente al correo."
+        )
 
     except Exception as e:
-        return jsonify(ok=False, mensaje=f"Error enviando correo: {e}")
+        return jsonify(
+            ok=False,
+            mensaje=f"❌ Error enviando correo: {str(e)}"
+        )
 
 # =======================================
 # RUN
 # =======================================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
 
