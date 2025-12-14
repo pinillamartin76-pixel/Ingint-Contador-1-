@@ -112,14 +112,19 @@
     <!-- ============================
          BOTONES FINALES
     ============================ -->
-    <div class="text-center">
-        <button class="btn btn-success btn-lg" onclick="guardarDatos()">
-            Guardar Datos
-        </button>
+    <div class="text-center d-flex justify-content-center gap-3 flex-wrap">
+    <button class="btn btn-success btn-lg" onclick="guardarDatos()">
+        Guardar Datos
+    </button>
 
-        <button class="btn btn-danger btn-lg" onclick="cerrarSesion()">
-    Cerrar Sesión
-        </button>
+    <button class="btn btn-primary btn-lg" onclick="descargarExcel()">
+        Descargar Excel
+    </button>
+
+    <button class="btn btn-danger btn-lg" onclick="cerrarSesion()">
+        Cerrar Sesión
+    </button>
+</div>
     </div>
 
     <div id="msg" class="text-center mt-3"></div>
@@ -256,8 +261,14 @@ function cerrarSesion() {
 
 
 </script>
-
+<script>
+function descargarExcel() {
+    // Descarga directa del archivo Excel
+    window.open("/abrir_excel", "_blank");
+}
+</script>
 </script>
 
 </body>
 </html>
+
