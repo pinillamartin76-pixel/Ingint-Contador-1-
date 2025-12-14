@@ -6,7 +6,7 @@ import os
 import smtplib
 from email.message import EmailMessage
 import json
-from google.oauth2 import service_account
+from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
@@ -210,17 +210,26 @@ def guardar():
 
     return jsonify(ok=True, mensaje="Datos guardados correctamente.")
 
+# =======================================
+# GUARDAR EN GOOGLE DRIVE
+# =======================================
 def subir_a_drive(archivo):
-    creds_info = json.loads(os.environ["GOOGLE_SERVICE_ACCOUNT_JSON"])
+    creds_json = os.environ.get("GOOGLE_CREDENTIALS")
+    folder_id = os.environ.get("DRIVE_FOLDER_ID")
 
-    creds = service_account.Credentials.from_service_account_info(
-        creds_info,
-        scopes=["https://www.googleapis.com/auth/drive"]
+    if not creds_json:
+        raise Exception("GOOGLE_CREDENTIALS no definido")
+    if not folder_id:
+        raise Exception("DRIVE_FOLDER_ID no definido")
+
+    creds_dict = json.loads(creds_json)
+
+    creds = Credentials.from_service_account_info(
+        creds_dict,
+        scopes=["https://www.googleapis.com/auth/drive.file"]
     )
 
     service = build("drive", "v3", credentials=creds)
-
-    folder_id = os.environ["DRIVE_FOLDER_ID"]
 
     file_metadata = {
         "name": os.path.basename(archivo),
@@ -239,7 +248,7 @@ def subir_a_drive(archivo):
     ).execute()
 
 # =======================================
-# ABRIR / DESCARGAR EXCEL (NUEVO)
+# ABRIR / DESCARGAR EXCEL
 # =======================================
 @app.route("/abrir_excel")
 def abrir_excel():
@@ -258,42 +267,7 @@ def abrir_excel():
     )
 
 # =======================================
-# ENVÍO DE CORREO SMTP (GMAIL)
-# =======================================
-def enviar_correo_smtp(archivo):
-    mail_user = os.environ.get("MAIL_USER")
-    mail_pass = os.environ.get("MAIL_PASS")
-    mail_to = os.environ.get("MAIL_TO")
-
-    if not mail_user or not mail_pass:
-        raise Exception("MAIL_USER o MAIL_PASS no configurados")
-
-    msg = EmailMessage()
-    msg["From"] = mail_user
-    msg["To"] = mail_to
-    msg["Subject"] = "Registro de vehículos"
-
-    msg.set_content(
-        f"Usuario: {session['usuario']}\n"
-        f"Ruta: {session['ruta']}\n\n"
-        "Se adjunta el archivo Excel."
-    )
-
-    with open(archivo, "rb") as f:
-        msg.add_attachment(
-            f.read(),
-            maintype="application",
-            subtype="vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            filename=os.path.basename(archivo)
-        )
-
-    with smtplib.SMTP("smtp.gmail.com", 587) as server:
-        server.starttls()
-        server.login(mail_user, mail_pass)
-        server.send_message(msg)
-
-# =======================================
-# CERRAR SESIÓN + CORREO
+# CERRAR SESIÓN + GUARDAR EN DRIVE
 # =======================================
 @app.route("/cerrar", methods=["POST"])
 def cerrar():
@@ -302,19 +276,13 @@ def cerrar():
     try:
         subir_a_drive(archivo)
         session.clear()
-        return jsonify(
-            ok=True,
-            mensaje="📁 Archivo guardado correctamente en Google Drive."
-        )
+        return jsonify(ok=True, mensaje="📁 Archivo guardado correctamente en Google Drive.")
 
     except Exception as e:
-        return jsonify(
-            ok=False,
-            mensaje=f"Error guardando en Drive: {e}"
-        )
+        return jsonify(ok=False, mensaje=f"Error guardando en Drive: {e}")
+
 # =======================================
 # RUN
 # =======================================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
-
