@@ -3,6 +3,7 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Border, Side
 from datetime import datetime, date
 import os
+import requests
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "super_secret_key_123")
@@ -227,16 +228,53 @@ def abrir_excel():
         download_name=os.path.basename(archivo)
     )
 
+def enviar_excel_por_telegram(archivo):
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+
+    if not token or not chat_id:
+        raise Exception("Telegram no configurado")
+
+    url = f"https://api.telegram.org/bot{token}/sendDocument"
+
+    with open(archivo, "rb") as f:
+        response = requests.post(
+            url,
+            data={
+                "chat_id": chat_id,
+                "caption": "📊 Registro de conteo de vehículos"
+            },
+            files={
+                "document": f
+            }
+        )
+
+    if response.status_code != 200:
+        raise Exception(response.text)
+
 # =======================================
 # CERRAR SESIÓN
 # =======================================
 @app.route("/cerrar", methods=["POST"])
 def cerrar():
-    session.clear()
-    return jsonify(ok=True, mensaje="Sesión cerrada correctamente.")
+    archivo = archivo_excel()
 
+    try:
+        enviar_excel_por_telegram(archivo)
+        session.clear()
+        return jsonify(
+            ok=True,
+            mensaje="📤 Excel enviado correctamente por Telegram."
+        )
+
+    except Exception as e:
+        return jsonify(
+            ok=False,
+            mensaje=f"❌ Error enviando por Telegram: {e}"
+        )
 # =======================================
 # RUN
 # =======================================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
