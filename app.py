@@ -1,12 +1,29 @@
 from flask import Flask, render_template, request, redirect, session, jsonify, send_file
+from flask_session import Session
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Border, Side
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import os
 import requests
 
 app = Flask(__name__)
+
+# =======================================
+# CONFIGURACIÓN DE SESIÓN (MEJORADA)
+# =======================================
 app.secret_key = os.environ.get("SECRET_KEY", "super_secret_key_123")
+
+app.config.update(
+    SESSION_TYPE="filesystem",              # Guardar sesión en el servidor
+    SESSION_FILE_DIR="./.flask_session",    # Carpeta de sesiones
+    SESSION_PERMANENT=True,
+    PERMANENT_SESSION_LIFETIME=timedelta(days=1),  # 1 día
+    SESSION_USE_SIGNER=True,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax"
+)
+
+Session(app)
 
 # =======================================
 # ARCHIVO DINÁMICO POR USUARIO + RUTA
@@ -83,6 +100,7 @@ def login():
         if not usuario or not ruta:
             return render_template("login.html", error="Debes completar Usuario y Ruta")
 
+        session.permanent = True  # 🔒 sesión persistente
         session["usuario"] = usuario
         session["ruta"] = ruta
         session["conteos"] = {c: 0 for c in categorias_base}
@@ -153,7 +171,7 @@ def nueva_categoria():
     return jsonify(ok=True)
 
 # =======================================
-# GUARDAR EXCEL (VERSIÓN CORRECTA)
+# GUARDAR EXCEL
 # =======================================
 @app.route("/guardar", methods=["POST"])
 def guardar():
@@ -188,19 +206,19 @@ def guardar():
         if n > 0:
             actualizar(c, n)
 
-    # ❌ eliminar N° Vehículos anterior
+    # eliminar total anterior
     for i, row in enumerate(conteo.iter_rows(min_row=2), start=2):
         if row[0].value == "N° Vehículos":
             conteo.delete_rows(i)
             break
 
-    # ➕ calcular total
     total = sum(
         row[1].value for row in conteo.iter_rows(min_row=2)
         if row[0].value != "N° Vehículos"
     )
 
     conteo.append(["N° Vehículos", total, fecha, session["ruta"]])
+
     wb.save(archivo)
 
     session["conteos"] = {c: 0 for c in categorias_base}
@@ -218,16 +236,11 @@ def abrir_excel():
         return redirect("/")
 
     archivo = archivo_excel()
+    return send_file(archivo, as_attachment=True)
 
-    if not os.path.exists(archivo):
-        return "Archivo no encontrado", 404
-
-    return send_file(
-        archivo,
-        as_attachment=True,
-        download_name=os.path.basename(archivo)
-    )
-
+# =======================================
+# TELEGRAM
+# =======================================
 def enviar_excel_por_telegram(archivo):
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
     chat_id = os.environ.get("TELEGRAM_CHAT_ID")
@@ -272,9 +285,9 @@ def cerrar():
             ok=False,
             mensaje=f"❌ Error enviando por Telegram: {e}"
         )
+
 # =======================================
 # RUN
 # =======================================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
-
