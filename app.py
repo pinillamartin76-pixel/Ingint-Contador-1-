@@ -5,6 +5,7 @@ from openpyxl.styles import Font, PatternFill, Border, Side
 from datetime import datetime, date, timedelta
 import os
 import requests
+from zoneinfo import ZoneInfo
 
 app = Flask(__name__)
 
@@ -180,8 +181,11 @@ def guardar():
     conteo = wb["Conteo"]
     hist = wb["Historial"]
 
-    fecha = date.today().strftime("%d-%m-%Y")
-    hora = datetime.now().strftime("%H:%M:%S")
+    zona_chile = ZoneInfo("America/Santiago")
+    ahora = datetime.now(zona_chile)
+
+    fecha = ahora.strftime("%d-%m-%Y")
+    hora = ahora.strftime("%H:%M:%S")
 
     def actualizar(cat, cant):
         for row in conteo.iter_rows(min_row=2):
@@ -291,3 +295,4 @@ def cerrar():
 # =======================================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
